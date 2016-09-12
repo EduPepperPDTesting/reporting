@@ -29,15 +29,16 @@ mongo2_db_assist="$EDX_PLATFORM_MONGO_DB_ASSIST"
 
 echo -e "tahoe" | sudo -S netstat -tlnp
 mongo3_path="/home/tahoe/mongo321/mongodb-linux-x86_64-ubuntu1204-3.2.1/bin"
+tmp_path="${PROJECT_HOME}/tmp/reporting"
 
 echo '-------------------------------------------'
 echo 'User information conversion'
 echo '-------------------------------------------'
 
-sudo rm -f /tmp/user_info.csv;
+sudo rm -f ${tmp_path}/user_info.csv;
 
 mysql -u$mysql_user -p$mysql_pwd -h$mysql_host -P$mysql_port $mysql_db <<EOF
-select auth_user.id,auth_userprofile.user_id,auth_user.email,TRIM(auth_user.username),TRIM(auth_user.first_name),TRIM(auth_user.last_name),TRIM(state.name) as state,TRIM(district.name) as district,TRIM(school.name) as school,state.id as state_id,district.id as district_id,school.id as school_id,date_format(auth_userprofile.activate_date,'%Y-%m-%d') as activate_date,TRIM(auth_userprofile.subscription_status),subject_area.name as major_subject_area from auth_user left join auth_userprofile on (auth_userprofile.user_id=auth_user.id) left join district on(district_id=district.id) left join state on(state_id=state.id) left join school on(school_id=school.id) left join subject_area on(major_subject_area_id=subject_area.id) into outfile '/tmp/user_info.csv' fields terminated by ',' optionally enclosed by '"' escaped by '' lines terminated by '\n';
+select auth_user.id,auth_userprofile.user_id,auth_user.email,TRIM(auth_user.username),TRIM(auth_user.first_name),TRIM(auth_user.last_name),TRIM(state.name) as state,TRIM(district.name) as district,TRIM(school.name) as school,state.id as state_id,district.id as district_id,school.id as school_id,date_format(auth_userprofile.activate_date,'%Y-%m-%d') as activate_date,TRIM(auth_userprofile.subscription_status),subject_area.name as major_subject_area from auth_user left join auth_userprofile on (auth_userprofile.user_id=auth_user.id) left join district on(district_id=district.id) left join state on(state_id=state.id) left join school on(school_id=school.id) left join subject_area on(major_subject_area_id=subject_area.id) into outfile '${tmp_path}/user_info.csv' fields terminated by ',' optionally enclosed by '"' escaped by '' lines terminated by '\n';
 EOF
 
 $mongo3_path/mongo --port=$mongo3_port <<EOF
@@ -45,11 +46,11 @@ use $mongo3_db_reporting
 db.user_info.drop()
 EOF
 
-# $mongo3_path/mongoimport -d "reporting" -c "user_info" --port $mongo3_port -f "id,user_id,username,state,district,school,major_subject_area" --type=csv --file=/tmp/test123.csv
+# $mongo3_path/mongoimport -d "reporting" -c "user_info" --port $mongo3_port -f "id,user_id,username,state,district,school,major_subject_area" --type=csv --file=${tmp_path}/test123.csv
 
-$mongo3_path/mongoimport -d "$mongo3_db_reporting" -c "user_info" --port $mongo3_port -f "id,user_id,email,username,first_name,last_name,state,district,school,state_id,district_id,school_id,activate_date,subscription_status,major_subject_area" --type=csv --file=/tmp/user_info.csv
+$mongo3_path/mongoimport -d "$mongo3_db_reporting" -c "user_info" --port $mongo3_port -f "id,user_id,email,username,first_name,last_name,state,district,school,state_id,district_id,school_id,activate_date,subscription_status,major_subject_area" --type=csv --file=${tmp_path}/user_info.csv
 
-sudo rm -f /tmp/user_info.csv;
+sudo rm -f ${tmp_path}/user_info.csv;
 
 echo '-------------------------------------------'
 echo 'user conversion is complete!'
@@ -64,14 +65,14 @@ echo '-------------------------------------------'
 sync
 echo 3 | sudo tee /proc/sys/vm/drop_caches
 
-mongoexport --port=$mongo2_port -d $mongo2_db_xmodule -c modulestore -o /tmp/modulestore.json
+mongoexport --port=$mongo2_port -d $mongo2_db_xmodule -c modulestore -o ${tmp_path}/modulestore.json
 $mongo3_path/mongo --port=$mongo3_port <<EOF
 use $mongo3_db_reporting
 db.modulestore.drop()
 EOF
 
-$mongo3_path/mongoimport -d $mongo3_db_reporting -c modulestore /tmp/modulestore.json --port $mongo3_port
-sudo rm -f /tmp/modulestore.json;
+$mongo3_path/mongoimport -d $mongo3_db_reporting -c modulestore ${tmp_path}/modulestore.json --port $mongo3_port
+sudo rm -f ${tmp_path}/modulestore.json;
 
 $mongo3_path/mongo --port=$mongo3_port <<EOF
 use $mongo3_db_reporting
@@ -95,17 +96,17 @@ echo '-------------------------------------------'
 sync
 echo 3 | sudo tee /proc/sys/vm/drop_caches
 
-sudo rm -f /tmp/pd_time.csv;
+sudo rm -f ${tmp_path}/pd_time.csv;
 
 mysql -u$mysql_user -p$mysql_pwd -h$mysql_host -P$mysql_port $mysql_db <<EOF
-select student_id as user_id,sum(student_credit)*3600 as credit from pepreg_student group by user_id into outfile '/tmp/pd_time.csv' fields terminated by ',' optionally enclosed by '"' escaped by '' lines terminated by '\n';
+select student_id as user_id,sum(student_credit)*3600 as credit from pepreg_student group by user_id into outfile '${tmp_path}/pd_time.csv' fields terminated by ',' optionally enclosed by '"' escaped by '' lines terminated by '\n';
 EOF
 
-mongoexport --port=$mongo2_port -d $mongo2_db_assist -c page_time -o /tmp/page_time.json
-mongoexport --port=$mongo2_port -d $mongo2_db_assist -c discussion_time -o /tmp/discussion_time.json
-mongoexport --port=$mongo2_port -d $mongo2_db_assist -c portfolio_time -o /tmp/portfolio_time.json
-mongoexport --port=$mongo2_port -d $mongo2_db_assist -c external_time -o /tmp/external_time.json
-mongoexport --port=$mongo2_port -d $mongo2_db_assist -c adjustment_time -o /tmp/adjustment_time.json
+mongoexport --port=$mongo2_port -d $mongo2_db_assist -c page_time -o ${tmp_path}/page_time.json
+mongoexport --port=$mongo2_port -d $mongo2_db_assist -c discussion_time -o ${tmp_path}/discussion_time.json
+mongoexport --port=$mongo2_port -d $mongo2_db_assist -c portfolio_time -o ${tmp_path}/portfolio_time.json
+mongoexport --port=$mongo2_port -d $mongo2_db_assist -c external_time -o ${tmp_path}/external_time.json
+mongoexport --port=$mongo2_port -d $mongo2_db_assist -c adjustment_time -o ${tmp_path}/adjustment_time.json
 
 $mongo3_path/mongo --port=$mongo3_port <<EOF
 use $mongo3_db_reporting
@@ -119,20 +120,20 @@ db.course_time.drop()
 db.pd_time.drop()
 EOF
 
-$mongo3_path/mongoimport -d $mongo3_db_reporting -c page_time /tmp/page_time.json --port $mongo3_port
-$mongo3_path/mongoimport -d $mongo3_db_reporting -c discussion_time /tmp/discussion_time.json --port $mongo3_port
-$mongo3_path/mongoimport -d $mongo3_db_reporting -c portfolio_time /tmp/portfolio_time.json --port $mongo3_port
-$mongo3_path/mongoimport -d $mongo3_db_reporting -c t_external_time /tmp/external_time.json --port $mongo3_port
-$mongo3_path/mongoimport -d $mongo3_db_reporting -c adjustment_time /tmp/adjustment_time.json --port $mongo3_port
+$mongo3_path/mongoimport -d $mongo3_db_reporting -c page_time ${tmp_path}/page_time.json --port $mongo3_port
+$mongo3_path/mongoimport -d $mongo3_db_reporting -c discussion_time ${tmp_path}/discussion_time.json --port $mongo3_port
+$mongo3_path/mongoimport -d $mongo3_db_reporting -c portfolio_time ${tmp_path}/portfolio_time.json --port $mongo3_port
+$mongo3_path/mongoimport -d $mongo3_db_reporting -c t_external_time ${tmp_path}/external_time.json --port $mongo3_port
+$mongo3_path/mongoimport -d $mongo3_db_reporting -c adjustment_time ${tmp_path}/adjustment_time.json --port $mongo3_port
 
-sudo rm -f /tmp/page_time.json;
-sudo rm -f /tmp/discussion_time.json;
-sudo rm -f /tmp/portfolio_time.json;
-sudo rm -f /tmp/external_time.json;
-sudo rm -f /tmp/adjustment_time.json;
+sudo rm -f ${tmp_path}/page_time.json;
+sudo rm -f ${tmp_path}/discussion_time.json;
+sudo rm -f ${tmp_path}/portfolio_time.json;
+sudo rm -f ${tmp_path}/external_time.json;
+sudo rm -f ${tmp_path}/adjustment_time.json;
 
-$mongo3_path/mongoimport -d "$mongo3_db_reporting" -c "pd_time" --port $mongo3_port -f "user_id,credit" --type=csv --file=/tmp/pd_time.csv
-sudo rm -f /tmp/pd_time.csv;
+$mongo3_path/mongoimport -d "$mongo3_db_reporting" -c "pd_time" --port $mongo3_port -f "user_id,credit" --type=csv --file=${tmp_path}/pd_time.csv
+sudo rm -f ${tmp_path}/pd_time.csv;
 
 sudo $mongo3_path/mongo --port=$mongo3_port << EOF
 use $mongo3_db_reporting
@@ -259,7 +260,7 @@ sync
 echo 3 | sudo tee /proc/sys/vm/drop_caches
 
 mysql -u$mysql_user -p$mysql_pwd -h$mysql_host -P$mysql_port $mysql_db <<EOF
-select user_id,course_id,created,is_active from student_courseenrollment into outfile '/tmp/student_courseenrollment.csv' fields terminated by ',' optionally enclosed by '"' escaped by '' lines terminated by '\n';
+select user_id,course_id,created,is_active from student_courseenrollment into outfile '${tmp_path}/student_courseenrollment.csv' fields terminated by ',' optionally enclosed by '"' escaped by '' lines terminated by '\n';
 EOF
 
 $mongo3_path/mongo --port=$mongo3_port <<EOF
@@ -267,11 +268,11 @@ use $mongo3_db_reporting
 db.student_courseenrollment.drop()
 EOF
 
-# $mongo3_path/mongoimport -d "$mongo3_db_reporting" -c "student_courseenrollment" --port $mongo3_port -f "user_id,course_id,created" --type=csv --file=/tmp/student_courseenrollment.csv
+# $mongo3_path/mongoimport -d "$mongo3_db_reporting" -c "student_courseenrollment" --port $mongo3_port -f "user_id,course_id,created" --type=csv --file=${tmp_path}/student_courseenrollment.csv
 
-$mongo3_path/mongoimport -d "$mongo3_db_reporting" -c "student_courseenrollment" --port $mongo3_port -f "user_id,course_id,created,is_active" --type=csv --file=/tmp/student_courseenrollment.csv
+$mongo3_path/mongoimport -d "$mongo3_db_reporting" -c "student_courseenrollment" --port $mongo3_port -f "user_id,course_id,created,is_active" --type=csv --file=${tmp_path}/student_courseenrollment.csv
 
-sudo rm -f /tmp/student_courseenrollment.csv;
+sudo rm -f ${tmp_path}/student_courseenrollment.csv;
 
 $mongo3_path/mongo --port=$mongo3_port <<EOF
 use $mongo3_db_reporting
@@ -308,20 +309,20 @@ echo '-------------------------------------------'
 sync
 echo 3 | sudo tee /proc/sys/vm/drop_caches
 
-sudo rm -f /tmp/courseware_studentmodule.csv;
+sudo rm -f ${tmp_path}/courseware_studentmodule.csv;
 
 mysql -u$mysql_user -p$mysql_pwd -h$mysql_host -P$mysql_port $mysql_db <<EOF
-select module_type,module_id,student_id,replace(state,'"',"#@#") as state,grade,created,modified,max_grade,done,course_id from courseware_studentmodule where module_type='problem' or module_type='combinedopenended' or module_type='course' into outfile '/tmp/courseware_studentmodule.csv' fields terminated by ',' optionally enclosed by '"' escaped by '' lines terminated by '\n';
+select module_type,module_id,student_id,replace(state,'"',"#@#") as state,grade,created,modified,max_grade,done,course_id from courseware_studentmodule where module_type='problem' or module_type='combinedopenended' or module_type='course' into outfile '${tmp_path}/courseware_studentmodule.csv' fields terminated by ',' optionally enclosed by '"' escaped by '' lines terminated by '\n';
 EOF
 $mongo3_path/mongo --port=$mongo3_port <<EOF
 use $mongo3_db_reporting
 db.courseware_studentmodule.drop()
 EOF
 
-# $mongo3_path/mongoimport -d "$mongo3_db_reporting" -c "courseware_studentmodule" --port $mongo3_port -f "module_type,module_id,student_id,state,grade,created,modified,max_grade,done,course_id" --type=csv --file=/tmp/courseware_studentmodule.csv
-$mongo3_path/mongoimport -d "$mongo3_db_reporting" -c "courseware_studentmodule" --port $mongo3_port -f "module_type,module_id,student_id,state,grade,created,modified,max_grade,done,course_id" --type=csv --file=/tmp/courseware_studentmodule.csv
+# $mongo3_path/mongoimport -d "$mongo3_db_reporting" -c "courseware_studentmodule" --port $mongo3_port -f "module_type,module_id,student_id,state,grade,created,modified,max_grade,done,course_id" --type=csv --file=${tmp_path}/courseware_studentmodule.csv
+$mongo3_path/mongoimport -d "$mongo3_db_reporting" -c "courseware_studentmodule" --port $mongo3_port -f "module_type,module_id,student_id,state,grade,created,modified,max_grade,done,course_id" --type=csv --file=${tmp_path}/courseware_studentmodule.csv
 
-sudo rm -f /tmp/courseware_studentmodule.csv;
+sudo rm -f ${tmp_path}/courseware_studentmodule.csv;
 
 sync
 
